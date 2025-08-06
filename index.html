@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Reproductor IPTV Móvil</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- HLS.js -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        body {
+            background-color: #111827;
+            color: #E5E7EB;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* Estilos táctiles */
+        .item-card, .filter-button {
+            transition: all 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .item-card:active {
+            transform: scale(0.95);
+            opacity: 0.8;
+        }
+        .filter-button:active {
+            transform: scale(0.98);
+        }
+        
+        /* Scroll personalizado para móviles */
+        #playlist-container::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        #playlist-container::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+        
+        .filter-button.active { background-color: #3B82F6; color: white; }
+        #search-input { 
+            background-color: #374151; 
+            color: white;
+            -webkit-appearance: none;
+            border-radius: 12px;
+        }
+        
+        /* Estilos para el icono de favoritos */
+        .favorite-icon {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            z-index: 10;
+            fill: rgba(255, 255, 255, 0.5);
+            transition: all 0.2s ease;
+        }
+        .favorite-icon:active {
+            transform: scale(1.2);
+        }
+        .item-card.is-favorite .favorite-icon { fill: #FBBF24; }
+        
+        /* Player controls */
+        #player-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+            padding: 16px;
+            display: flex;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        #player-container:hover #player-controls {
+            opacity: 1;
+        }
+        
+        /* Mobile specific */
+        @media (max-width: 640px) {
+            #header {
+                padding-top: env(safe-area-inset-top);
+            }
+            #app-container {
+                padding-left: env(safe-area-inset-left);
+                padding-right: env(safe-area-inset-right);
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+            #filter-nav {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .filter-button {
+                padding: 8px 12px;
+                font-size: 14px;
+            }
+            #playlist-container {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="overflow-hidden">
+
+    <div id="loader" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex flex-col justify-center items-center z-50">
+        <svg class="animate-spin h-10 w-10 text-white mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-xl">Cargando playlist...</p>
+    </div>
+
+    <div id="app-container" class="h-screen w-screen flex flex-col p-4">
+        <header id="header" class="mb-4">
+            <h1 class="text-2xl font-bold text-white mb-3">Reproductor IPTV</h1>
+            <div class="flex flex-col space-y-3">
+                <div class="relative">
+                    <input type="search" id="search-input" placeholder="Buscar..." class="w-full p-3 rounded-lg focus:outline-none">
+                    <svg class="absolute right-3 top-3.5 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <nav id="filter-nav" class="flex overflow-x-auto pb-2 space-x-2">
+                    <button data-filter="all" class="filter-button px-3 py-2 rounded-lg bg-gray-700 active">Todos</button>
+                    <button data-filter="favorites" class="filter-button px-3 py-2 rounded-lg bg-gray-700">Favoritos</button>
+                    <button data-filter="tv" class="filter-button px-3 py-2 rounded-lg bg-gray-700">TV</button>
+                    <button data-filter="movie" class="filter-button px-3 py-2 rounded-lg bg-gray-700">Películas</button>
+                    <button data-filter="serie" class="filter-button px-3 py-2 rounded-lg bg-gray-700">Series</button>
+                </nav>
+            </div>
+        </header>
+
+        <main id="playlist-container" class="flex-grow overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <!-- Los elementos se insertarán aquí -->
+        </main>
+        
+        <div id="message-container" class="hidden flex-grow justify-center items-center">
+            <p class="text-lg text-gray-400 text-center px-4"></p>
+        </div>
+    </div>
+
+    <div id="player-container" class="hidden fixed inset-0 bg-black z-40">
+        <video id="video-player" class="w-full h-full" playsinline webkit-playsinline></video>
+        <div id="player-controls">
+            <button id="close-player" class="bg-gray-800 text-white px-6 py-2 rounded-full">
+                Cerrar
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const PLAYLIST_URL = 'https://raw.githubusercontent.com/FenixIPTV/sturdy-telegram/refs/heads/main/playlist.m3u';
+
+        const loader = document.getElementById('loader');
+        const appContainer = document.getElementById('app-container');
+        const playlistContainer = document.getElementById('playlist-container');
+        const messageContainer = document.getElementById('message-container');
+        const playerContainer = document.getElementById('player-container');
+        const videoPlayer = document.getElementById('video-player');
+        const closePlayerBtn = document.getElementById('close-player');
+        const filterNav = document.getElementById('filter-nav');
+        const searchInput = document.getElementById('search-input');
+
+        let fullPlaylist = [];
+        let currentPlaylist = [];
+        let favorites = [];
+        let currentFilter = 'all';
+        let searchTerm = '';
+        let hls = null;
+        let lastTouchY = 0;
+        let touchStartTime = 0;
+
+        document.addEventListener('DOMContentLoaded', initialize);
+
+        async function initialize() {
+            loadFavorites();
+            setupEventListeners();
+            
+            try {
+                const m3uText = await fetchPlaylist(PLAYLIST_URL);
+                fullPlaylist = parseM3U(m3uText);
+                if (fullPlaylist.length > 0) {
+                    renderPlaylist();
+                } else {
+                    showMessage('La playlist está vacía o no se pudo procesar.');
+                }
+            } catch (error) {
+                console.error('Error al cargar la playlist:', error);
+                showMessage('No se pudo cargar la playlist. Revisa tu conexión.');
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        function setupEventListeners() {
+            // Eventos táctiles
+            document.addEventListener('touchstart', handleTouchStart, {passive: true});
+            document.addEventListener('touchmove', handleTouchMove, {passive: false});
+            
+            // Eventos de interfaz
+            filterNav.addEventListener('click', handleFilterClick);
+            searchInput.addEventListener('input', handleSearch);
+            closePlayerBtn.addEventListener('click', stopVideo);
+            
+            // Evento para cerrar el reproductor al tocar la pantalla
+            playerContainer.addEventListener('click', function(e) {
+                if (e.target === playerContainer || e.target === videoPlayer) {
+                    togglePlayerControls();
+                }
+            });
+            
+            // Evento para pantalla completa en iOS
+            videoPlayer.addEventListener('webkitbeginfullscreen', function() {
+                document.body.style.overflow = 'hidden';
+            });
+            
+            videoPlayer.addEventListener('webkitendfullscreen', function() {
+                document.body.style.overflow = '';
+                videoPlayer.play();
+            });
+        }
+        
+        function handleTouchStart(e) {
+            lastTouchY = e.touches[0].clientY;
+            touchStartTime = Date.now();
+        }
+        
+        function handleTouchMove(e) {
+            if (playerContainer.classList.contains('hidden')) return;
+            
+            const touchY = e.touches[0].clientY;
+            const deltaY = touchY - lastTouchY;
+            
+            // Deslizar hacia abajo para cerrar el reproductor
+            if (deltaY > 50 && (Date.now() - touchStartTime) < 300) {
+                e.preventDefault();
+                stopVideo();
+            }
+        }
+
+        async function fetchPlaylist(url) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+            return await response.text();
+        }
+
+        function parseM3U(m3uText) {
+            const lines = m3uText.split('\n');
+            const playlist = [];
+            let currentItem = {};
+            
+            for (const line of lines) {
+                if (line.startsWith('#EXTINF:')) {
+                    currentItem = {};
+                    const infoLine = line.substring(line.indexOf(' ') + 1);
+                    const nameMatch = infoLine.match(/,(.+)$/);
+                    currentItem.name = nameMatch ? nameMatch[1].trim() : 'Sin Nombre';
+                    
+                    const getAttribute = (attr) => {
+                        const regex = new RegExp(`${attr}="([^"]+)"`);
+                        const match = infoLine.match(regex);
+                        return match ? match[1] : null;
+                    };
+                    
+                    currentItem.logo = getAttribute('tvg-logo');
+                    currentItem.type = getAttribute('type');
+                    currentItem.group = getAttribute('group-title');
+                    
+                    if (!currentItem.type) {
+                        const lowerGroup = (currentItem.group || '').toLowerCase();
+                        if (lowerGroup.includes('movie') || lowerGroup.includes('pelicula')) currentItem.type = 'movie';
+                        else if (lowerGroup.includes('serie')) currentItem.type = 'serie';
+                        else currentItem.type = 'tv';
+                    }
+                } else if (line.trim().startsWith('http')) {
+                    currentItem.url = line.trim();
+                    if (currentItem.name && currentItem.url) {
+                        currentItem.id = playlist.length;
+                        playlist.push(currentItem);
+                    }
+                    currentItem = {};
+                }
+            }
+            return playlist;
+        }
+
+        function loadFavorites() {
+            favorites = JSON.parse(localStorage.getItem('iptv_favorites') || '[]');
+        }
+
+        function saveFavorites() {
+            localStorage.setItem('iptv_favorites', JSON.stringify(favorites));
+        }
+
+        function toggleFavorite(itemId, event) {
+            event.stopPropagation();
+            const itemIndexInFavorites = favorites.indexOf(itemId);
+            if (itemIndexInFavorites > -1) {
+                favorites.splice(itemIndexInFavorites, 1);
+            } else {
+                favorites.push(itemId);
+            }
+            saveFavorites();
+            renderPlaylist();
+        }
+
+        function renderPlaylist() {
+            playlistContainer.innerHTML = '';
+            
+            let filteredList;
+            if (currentFilter === 'all') filteredList = fullPlaylist;
+            else if (currentFilter === 'favorites') filteredList = fullPlaylist.filter(item => favorites.includes(item.id));
+            else filteredList = fullPlaylist.filter(item => item.type === currentFilter);
+
+            if (searchTerm) {
+                const lowerSearchTerm = searchTerm.toLowerCase();
+                filteredList = filteredList.filter(item => 
+                    item.name.toLowerCase().includes(lowerSearchTerm) ||
+                    (item.group && item.group.toLowerCase().includes(lowerSearchTerm))
+                );
+            }
+            
+            currentPlaylist = filteredList;
+
+            if (currentPlaylist.length === 0) {
+                let msg = `No se encontraron elementos`;
+                if(searchTerm) msg += ` para "${searchTerm}"`;
+                if(currentFilter !== 'all') msg += ` en "${currentFilter}"`;
+                showMessage(msg + '.');
+                playlistContainer.classList.add('hidden');
+                return;
+            }
+            
+            messageContainer.classList.add('hidden');
+            playlistContainer.classList.remove('hidden');
+
+            currentPlaylist.forEach((item) => {
+                const card = document.createElement('div');
+                const isFav = favorites.includes(item.id);
+                card.className = `item-card bg-gray-800 rounded-lg flex flex-col items-center justify-center text-center p-2 aspect-video ${isFav ? 'is-favorite' : ''}`;
+                card.dataset.id = item.id;
+
+                card.innerHTML = `
+                    <svg class="favorite-icon" viewBox="0 0 24 24" onclick="event.stopPropagation()"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <img src="${item.logo || 'https://placehold.co/128x72/1F2937/E5E7EB?text=?'}" alt="${item.name}" class="w-16 h-16 object-contain mb-2" onerror="this.src='https://placehold.co/128x72/1F2937/E5E7EB?text=?'">
+                    <p class="text-sm font-medium text-gray-300 truncate w-full px-1">${item.name}</p>
+                `;
+                
+                card.addEventListener('click', () => playVideo(item.url));
+                card.querySelector('.favorite-icon').addEventListener('click', (e) => toggleFavorite(item.id, e));
+                playlistContainer.appendChild(card);
+            });
+        }
+
+        function showMessage(text) {
+            playlistContainer.classList.add('hidden');
+            messageContainer.classList.remove('hidden');
+            messageContainer.querySelector('p').textContent = text;
+        }
+
+        function handleFilterClick(e) {
+            const button = e.target.closest('.filter-button');
+            if (button) {
+                currentFilter = button.dataset.filter;
+                document.querySelectorAll('.filter-button').forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                renderPlaylist();
+                
+                // Scroll suave al cambiar filtro
+                playlistContainer.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            }
+        }
+
+        function handleSearch(e) {
+            searchTerm = e.target.value;
+            renderPlaylist();
+        }
+        
+        function togglePlayerControls() {
+            const controls = document.getElementById('player-controls');
+            controls.style.opacity = controls.style.opacity === '1' ? '0' : '1';
+        }
+
+        function playVideo(url) {
+            appContainer.classList.add('hidden');
+            playerContainer.classList.remove('hidden');
+            
+            if (hls) hls.destroy();
+            
+            // Forzar landscape en móviles
+            if (window.innerHeight > window.innerWidth) {
+                screen.orientation.lock('landscape').catch(e => console.log('Orientation lock not supported'));
+            }
+            
+            if (Hls.isSupported() && url.includes('.m3u8')) {
+                hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(videoPlayer);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    videoPlayer.play().catch(e => {
+                        // Mostrar controles nativos si falla el autoplay
+                        videoPlayer.controls = true;
+                    });
+                });
+                hls.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) playNatively(url);
+                });
+            } else {
+                playNatively(url);
+            }
+        }
+        
+        function playNatively(url) {
+            videoPlayer.controls = true;
+            if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                videoPlayer.src = url;
+                videoPlayer.play().catch(e => {
+                    console.error('Error al reproducir:', e);
+                });
+            } else {
+                stopVideo();
+                showMessage('Formato de video no soportado');
+            }
+        }
+
+        function stopVideo() {
+            // Restaurar orientación
+            screen.orientation.unlock();
+            
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+            
+            videoPlayer.pause();
+            videoPlayer.src = '';
+            videoPlayer.controls = false;
+            playerContainer.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            
+            // Mostrar controles brevemente al cerrar
+            const controls = document.getElementById('player-controls');
+            controls.style.opacity = '1';
+            setTimeout(() => { controls.style.opacity = '0'; }, 1000);
+        }
+    </script>
+</body>
+</html>

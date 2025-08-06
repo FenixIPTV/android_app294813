@@ -3,18 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FenixTV</title>
+    <title>Reproductor IPTV Móvil</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- HLS.js y Dash.js para reproducción -->
+    <!-- HLS.js y Dash.js -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/dashjs@latest/dist/dash.all.min.js"></script>
     <style>
+        :root {
+            --safe-area-inset-left: env(safe-area-inset-left);
+            --safe-area-inset-right: env(safe-area-inset-right);
+        }
+        
         body {
             background-color: #111827;
             color: #E5E7EB;
             font-family: 'Inter', sans-serif;
             -webkit-tap-highlight-color: transparent;
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            overflow-x: hidden;
+        }
+        
+        /* Layout principal */
+        #app-container {
+            width: 100%;
+            max-width: 100vw;
+            box-sizing: border-box;
+            padding-left: calc(8px + var(--safe-area-inset-left));
+            padding-right: calc(8px + var(--safe-area-inset-right));
+        }
+        
+        /* Grid de canales responsive */
+        #playlist-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* Tarjetas de canal */
+        .item-card {
+            width: 100%;
+            aspect-ratio: 16/9;
+            min-height: 0; /* Fix para aspect-ratio en iOS */
+        }
+        
+        /* Header responsive */
+        #header {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* Barra de búsqueda */
+        #search-container {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* Filtros - scroll horizontal */
+        #filter-nav {
+            width: 100%;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        #filter-nav::-webkit-scrollbar {
+            display: none;
         }
         
         /* Estilos táctiles */
@@ -30,102 +88,48 @@
             transform: scale(0.98);
         }
         
-        /* Scroll personalizado */
-        #playlist-container::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        #playlist-container::-webkit-scrollbar-thumb {
-            background-color: rgba(255, 255, 255, 0.2);
-            border-radius: 3px;
-        }
-        
         .filter-button.active { background-color: #3B82F6; color: white; }
-        #search-input { 
-            background-color: #374151; 
-            color: white;
-            -webkit-appearance: none;
-            border-radius: 12px;
-        }
         
-        /* Estilos para el icono de favoritos */
+        /* Icono favoritos */
         .favorite-icon {
             position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 24px;
-            height: 24px;
+            top: 6px;
+            right: 6px;
+            width: 22px;
+            height: 22px;
             z-index: 10;
             fill: rgba(255, 255, 255, 0.5);
-            transition: all 0.2s ease;
-        }
-        .favorite-icon:active {
-            transform: scale(1.2);
         }
         .item-card.is-favorite .favorite-icon { fill: #FBBF24; }
         
-        /* Player controls */
-        #player-controls {
-            position: absolute;
-            bottom: 0;
+        /* Reproductor */
+        #player-container {
+            position: fixed;
+            top: 0;
             left: 0;
-            right: 0;
-            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-            padding: 16px;
-            display: flex;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        #player-container:hover #player-controls {
-            opacity: 1;
+            width: 100vw;
+            height: 100vh;
         }
         
-        /* Mobile specific */
-        @media (max-width: 640px) {
-            #header {
-                padding-top: env(safe-area-inset-top);
-            }
-            #app-container {
-                padding-left: env(safe-area-inset-left);
-                padding-right: env(safe-area-inset-right);
-                padding-bottom: env(safe-area-inset-bottom);
-            }
-            #filter-nav {
-                flex-wrap: wrap;
-                gap: 8px;
-            }
-            .filter-button {
-                padding: 8px 12px;
-                font-size: 14px;
-            }
+        /* Media queries específicas */
+        @media (min-width: 640px) {
             #playlist-container {
-                grid-template-columns: repeat(3, 1fr);
-                gap: 10px;
-            }
-            .item-card {
-                padding: 8px;
-            }
-            .item-card img {
-                width: 48px;
-                height: 48px;
-            }
-            .item-card p {
-                font-size: 12px;
-            }
-        }
-        
-        @media (min-width: 641px) {
-            #playlist-container {
-                grid-template-columns: repeat(4, 1fr);
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
                 gap: 12px;
             }
-            .item-card {
-                padding: 10px;
+        }
+        
+        @media (min-width: 768px) {
+            #playlist-container {
+                grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+                gap: 14px;
             }
-            .item-card img {
-                width: 64px;
-                height: 64px;
+        }
+        
+        @media (min-width: 1024px) {
+            #playlist-container {
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                gap: 16px;
             }
         }
     </style>
@@ -133,7 +137,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
-<body class="overflow-hidden">
+<body>
 
     <div id="loader" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex flex-col justify-center items-center z-50">
         <svg class="animate-spin h-10 w-10 text-white mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -143,38 +147,38 @@
         <p class="text-xl">Cargando playlist...</p>
     </div>
 
-    <div id="app-container" class="h-screen w-screen flex flex-col p-3">
-        <header id="header" class="mb-3">
-            <h1 class="text-2xl font-bold text-white mb-3">Bienvenido a FenixTV</h1>
-            <div class="flex flex-col space-y-3">
-                <div class="relative">
-                    <input type="search" id="search-input" placeholder="Buscar..." class="w-full p-3 rounded-lg focus:outline-none">
-                    <svg class="absolute right-3 top-3.5 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div id="app-container" class="min-h-screen flex flex-col p-2">
+        <header id="header" class="mb-3 sticky top-0 bg-gray-900 pt-2 pb-2 z-10">
+            <h1 class="text-xl font-bold text-white mb-2 px-1">IPTV Player</h1>
+            <div class="flex flex-col space-y-2 w-full">
+                <div id="search-container" class="relative px-1">
+                    <input type="search" id="search-input" placeholder="Buscar..." class="w-full p-2 rounded-lg bg-gray-700 text-white focus:outline-none">
+                    <svg class="absolute right-3 top-2.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </div>
-                <nav id="filter-nav" class="flex overflow-x-auto pb-2 space-x-2">
-                    <button data-filter="all" class="filter-button px-3 py-2 rounded-lg bg-gray-700 active">Todos</button>
-                    <button data-filter="favorites" class="filter-button px-3 py-2 rounded-lg bg-gray-700">Favoritos</button>
-                    <button data-filter="tv" class="filter-button px-3 py-2 rounded-lg bg-gray-700">TV</button>
-                    <button data-filter="movie" class="filter-button px-3 py-2 rounded-lg bg-gray-700">Películas</button>
-                    <button data-filter="serie" class="filter-button px-3 py-2 rounded-lg bg-gray-700">Series</button>
+                <nav id="filter-nav" class="px-1">
+                    <button data-filter="all" class="filter-button px-3 py-1.5 rounded-lg bg-gray-700 active mr-2">Todos</button>
+                    <button data-filter="favorites" class="filter-button px-3 py-1.5 rounded-lg bg-gray-700 mr-2">Favoritos</button>
+                    <button data-filter="tv" class="filter-button px-3 py-1.5 rounded-lg bg-gray-700 mr-2">TV</button>
+                    <button data-filter="movie" class="filter-button px-3 py-1.5 rounded-lg bg-gray-700 mr-2">Películas</button>
+                    <button data-filter="serie" class="filter-button px-3 py-1.5 rounded-lg bg-gray-700">Series</button>
                 </nav>
             </div>
         </header>
 
-        <main id="playlist-container" class="flex-grow overflow-y-auto grid gap-2">
-            <!-- Los elementos se insertarán aquí -->
+        <main id="playlist-container" class="flex-grow overflow-y-auto px-1 pb-4">
+            <!-- Canales se insertarán aquí -->
         </main>
         
-        <div id="message-container" class="hidden flex-grow justify-center items-center">
-            <p class="text-lg text-gray-400 text-center px-4"></p>
+        <div id="message-container" class="hidden flex-grow justify-center items-center px-4">
+            <p class="text-lg text-gray-400 text-center"></p>
         </div>
     </div>
 
     <div id="player-container" class="hidden fixed inset-0 bg-black z-40">
-        <video id="video-player" class="w-full h-full" playsinline webkit-playsinline></video>
-        <div id="player-controls">
+        <video id="video-player" class="w-full h-full" playsinline webkit-playsinline x-webkit-airplay="allow" x5-video-player-fullscreen="true"></video>
+        <div id="player-controls" class="absolute bottom-0 left-0 right-0 p-4 flex justify-center">
             <button id="close-player" class="bg-gray-800 text-white px-6 py-2 rounded-full">
                 Cerrar
             </button>
@@ -201,8 +205,6 @@
         let searchTerm = '';
         let hls = null;
         let dashPlayer = null;
-        let lastTouchY = 0;
-        let touchStartTime = 0;
 
         document.addEventListener('DOMContentLoaded', initialize);
 
@@ -216,57 +218,50 @@
                 if (fullPlaylist.length > 0) {
                     renderPlaylist();
                 } else {
-                    showMessage('La playlist está vacía o no se pudo procesar.');
+                    showMessage('La playlist está vacía');
                 }
             } catch (error) {
-                console.error('Error al cargar la playlist:', error);
-                showMessage('No se pudo cargar la playlist. Revisa tu conexión.');
+                console.error('Error:', error);
+                showMessage('Error al cargar la playlist');
             } finally {
                 loader.classList.add('hidden');
             }
         }
 
         function setupEventListeners() {
-            // Eventos táctiles
-            document.addEventListener('touchstart', handleTouchStart, {passive: true});
-            document.addEventListener('touchmove', handleTouchMove, {passive: false});
-            
-            // Eventos de interfaz
             filterNav.addEventListener('click', handleFilterClick);
             searchInput.addEventListener('input', handleSearch);
             closePlayerBtn.addEventListener('click', stopVideo);
             
-            // Evento para cerrar el reproductor al tocar la pantalla
-            playerContainer.addEventListener('click', function(e) {
-                if (e.target === playerContainer || e.target === videoPlayer) {
-                    togglePlayerControls();
-                }
-            });
+            // Manejar gestos táctiles en el reproductor
+            playerContainer.addEventListener('touchstart', handleTouchStart, {passive: true});
+            playerContainer.addEventListener('touchmove', handleTouchMove, {passive: false});
             
-            // Evento para pantalla completa en iOS
-            videoPlayer.addEventListener('webkitbeginfullscreen', function() {
+            // Pantalla completa en iOS
+            videoPlayer.addEventListener('webkitbeginfullscreen', () => {
                 document.body.style.overflow = 'hidden';
             });
             
-            videoPlayer.addEventListener('webkitendfullscreen', function() {
+            videoPlayer.addEventListener('webkitendfullscreen', () => {
                 document.body.style.overflow = '';
                 videoPlayer.play();
             });
         }
         
+        let touchStartY = 0;
+        
         function handleTouchStart(e) {
-            lastTouchY = e.touches[0].clientY;
-            touchStartTime = Date.now();
+            touchStartY = e.touches[0].clientY;
         }
         
         function handleTouchMove(e) {
             if (playerContainer.classList.contains('hidden')) return;
             
             const touchY = e.touches[0].clientY;
-            const deltaY = touchY - lastTouchY;
+            const deltaY = touchY - touchStartY;
             
-            // Deslizar hacia abajo para cerrar el reproductor
-            if (deltaY > 50 && (Date.now() - touchStartTime) < 300) {
+            // Deslizar hacia abajo para cerrar
+            if (deltaY > 100) {
                 e.preventDefault();
                 stopVideo();
             }
@@ -274,7 +269,7 @@
 
         async function fetchPlaylist(url) {
             const response = await fetch(url);
-            if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+            if (!response.ok) throw new Error(`Error: ${response.status}`);
             return await response.text();
         }
 
@@ -328,9 +323,9 @@
 
         function toggleFavorite(itemId, event) {
             event.stopPropagation();
-            const itemIndexInFavorites = favorites.indexOf(itemId);
-            if (itemIndexInFavorites > -1) {
-                favorites.splice(itemIndexInFavorites, 1);
+            const index = favorites.indexOf(itemId);
+            if (index > -1) {
+                favorites.splice(index, 1);
             } else {
                 favorites.push(itemId);
             }
@@ -341,43 +336,36 @@
         function renderPlaylist() {
             playlistContainer.innerHTML = '';
             
-            let filteredList;
-            if (currentFilter === 'all') filteredList = fullPlaylist;
-            else if (currentFilter === 'favorites') filteredList = fullPlaylist.filter(item => favorites.includes(item.id));
-            else filteredList = fullPlaylist.filter(item => item.type === currentFilter);
+            let filteredList = currentFilter === 'all' ? fullPlaylist :
+                currentFilter === 'favorites' ? fullPlaylist.filter(item => favorites.includes(item.id)) :
+                fullPlaylist.filter(item => item.type === currentFilter);
 
             if (searchTerm) {
-                const lowerSearchTerm = searchTerm.toLowerCase();
+                const term = searchTerm.toLowerCase();
                 filteredList = filteredList.filter(item => 
-                    item.name.toLowerCase().includes(lowerSearchTerm) ||
-                    (item.group && item.group.toLowerCase().includes(lowerSearchTerm))
+                    item.name.toLowerCase().includes(term) || 
+                    (item.group && item.group.toLowerCase().includes(term))
                 );
             }
             
             currentPlaylist = filteredList;
 
             if (currentPlaylist.length === 0) {
-                let msg = `No se encontraron elementos`;
-                if(searchTerm) msg += ` para "${searchTerm}"`;
-                if(currentFilter !== 'all') msg += ` en "${currentFilter}"`;
-                showMessage(msg + '.');
-                playlistContainer.classList.add('hidden');
+                showMessage(`No hay resultados${searchTerm ? ` para "${searchTerm}"` : ''}${currentFilter !== 'all' ? ` en ${currentFilter}` : ''}`);
                 return;
             }
             
             messageContainer.classList.add('hidden');
-            playlistContainer.classList.remove('hidden');
-
-            currentPlaylist.forEach((item) => {
+            
+            currentPlaylist.forEach(item => {
                 const card = document.createElement('div');
-                const isFav = favorites.includes(item.id);
-                card.className = `item-card bg-gray-800 rounded-lg flex flex-col items-center justify-center text-center ${isFav ? 'is-favorite' : ''}`;
+                card.className = `item-card bg-gray-800 rounded-lg flex flex-col items-center justify-center text-center p-2 relative ${favorites.includes(item.id) ? 'is-favorite' : ''}`;
                 card.dataset.id = item.id;
-
+                
                 card.innerHTML = `
-                    <svg class="favorite-icon" viewBox="0 0 24 24" onclick="event.stopPropagation()"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                    <img src="${item.logo || 'https://placehold.co/128x72/1F2937/E5E7EB?text=?'}" alt="${item.name}" class="object-contain mb-2" onerror="this.src='https://placehold.co/128x72/1F2937/E5E7EB?text=?'">
-                    <p class="text-gray-300 truncate w-full px-1">${item.name}</p>
+                    <svg class="favorite-icon" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    <img src="${item.logo || 'https://placehold.co/128x72/1F2937/E5E7EB?text=?'}" alt="${item.name}" class="w-12 h-12 object-contain mb-1" onerror="this.src='https://placehold.co/128x72/1F2937/E5E7EB?text=?'">
+                    <p class="text-xs text-gray-300 truncate w-full">${item.name}</p>
                 `;
                 
                 card.addEventListener('click', () => playVideo(item.url));
@@ -399,12 +387,6 @@
                 document.querySelectorAll('.filter-button').forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
                 renderPlaylist();
-                
-                // Scroll suave al cambiar filtro
-                playlistContainer.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
             }
         }
 
@@ -412,102 +394,28 @@
             searchTerm = e.target.value;
             renderPlaylist();
         }
-        
-        function togglePlayerControls() {
-            const controls = document.getElementById('player-controls');
-            controls.style.opacity = controls.style.opacity === '1' ? '0' : '1';
-        }
 
         function playVideo(url) {
             appContainer.classList.add('hidden');
             playerContainer.classList.remove('hidden');
             
             // Limpiar reproductores anteriores
-            if (hls) {
-                hls.destroy();
-                hls = null;
-            }
-            if (dashPlayer) {
-                dashPlayer.reset();
-                dashPlayer = null;
-            }
+            if (hls) hls.destroy();
+            if (dashPlayer) dashPlayer.reset();
             
             // Forzar landscape en móviles
             if (window.innerHeight > window.innerWidth) {
-                screen.orientation.lock('landscape').catch(e => console.log('Orientation lock not supported'));
+                screen.orientation.lock('landscape').catch(e => {});
             }
             
-            // Detectar tipo de stream y reproducir adecuadamente
-            if (isHLS(url)) {
-                playHLS(url);
-            } else if (isMPD(url)) {
-                playMPD(url);
-            } else {
-                // Intentar reproducción nativa para otros formatos
-                playNative(url);
-            }
-        }
-        
-        function isHLS(url) {
-            return url.includes('.m3u8') || 
-                   url.includes('hls') || 
-                   url.includes('m3u8') || 
-                   url.includes('index.m3u8');
-        }
-        
-        function isMPD(url) {
-            return url.includes('.mpd') || 
-                   url.includes('dash') || 
-                   url.includes('manifest.mpd');
-        }
-        
-        function playHLS(url) {
-            if (Hls.isSupported()) {
-                hls = new Hls();
-                hls.loadSource(url);
-                hls.attachMedia(videoPlayer);
-                hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                    videoPlayer.play().catch(e => {
-                        videoPlayer.controls = true;
-                    });
-                });
-                hls.on(Hls.Events.ERROR, (event, data) => {
-                    if (data.fatal) {
-                        console.error('Error HLS, intentando reproducción nativa');
-                        playNative(url);
-                    }
-                });
-            } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
-                playNative(url);
-            } else {
-                showPlayerError('Formato no soportado');
-            }
-        }
-        
-        function playMPD(url) {
-            if (typeof dashjs !== 'undefined') {
-                dashPlayer = dashjs.MediaPlayer().create();
-                dashPlayer.initialize(videoPlayer, url, true);
-                videoPlayer.play().catch(e => {
-                    videoPlayer.controls = true;
-                });
-            } else {
-                showPlayerError('Reproductor DASH no disponible');
-            }
-        }
-        
-        function playNative(url) {
+            // Configurar controles nativos
             videoPlayer.controls = true;
             videoPlayer.src = url;
+            
+            // Intentar reproducción automática
             videoPlayer.play().catch(e => {
-                console.error('Error al reproducir:', e);
-                showPlayerError('No se pudo reproducir el contenido');
+                console.log('Autoplay bloqueado, mostrando controles');
             });
-        }
-        
-        function showPlayerError(message) {
-            stopVideo();
-            showMessage(message);
         }
 
         function stopVideo() {
@@ -524,17 +432,14 @@
                 dashPlayer = null;
             }
             
-            // Limpiar video
+            // Detener video
             videoPlayer.pause();
             videoPlayer.src = '';
             videoPlayer.controls = false;
+            
+            // Volver a la vista principal
             playerContainer.classList.add('hidden');
             appContainer.classList.remove('hidden');
-            
-            // Mostrar controles brevemente al cerrar
-            const controls = document.getElementById('player-controls');
-            controls.style.opacity = '1';
-            setTimeout(() => { controls.style.opacity = '0'; }, 1000);
         }
     </script>
 </body>
